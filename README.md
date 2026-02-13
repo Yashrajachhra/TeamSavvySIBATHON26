@@ -1,4 +1,4 @@
-# SolarSmart ☀️
+# SmartSolar ☀️
 
 **SolarSmart** is an AI-powered platform for planning, financing, and maintaining rooftop solar systems. It helps users optimize solar panel placement, estimate energy production, find affordable green financing options, and monitor efficiency loss due to dust and weather conditions — all in a single dashboard. SolarSmart makes solar adoption easier, more efficient, and cost-effective while reducing carbon emissions.
 
