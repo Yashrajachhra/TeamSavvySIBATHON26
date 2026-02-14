@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7.0
+    container_name: smartsolar-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: smartsolar
+    networks:
+      - smartsolar-network
+    restart: unless-stopped
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: smartsolar-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - smartsolar-network
+    restart: unless-stopped
+
+  # Node.js API Server
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: smartsolar-server
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      MONGODB_URI: mongodb://mongodb:27017/smartsolar
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ai-service:8000
+      JWT_SECRET: smartsolar-jwt-secret-dev
+      JWT_REFRESH_SECRET: smartsolar-refresh-secret-dev
+      CLIENT_URL: http://localhost:3000
+    depends_on:
+      - mongodb
+      - redis
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    networks:
+      - smartsolar-network
+    restart: unless-stopped
+
+  # Python AI Service
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: smartsolar-ai
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: 8000
+      REDIS_URL: redis://redis:6379/0
+      MODEL_DIR: /app/ml_models/saved
+    volumes:
+      - ./ai-service:/app
+      - ai_models:/app/ml_models/saved
+    depends_on:
+      - redis
+    networks:
+      - smartsolar-network
+    restart: unless-stopped
+
+  # Next.js Client
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: smartsolar-client
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:5000
+      NEXT_PUBLIC_AI_URL: http://localhost:8000
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - server
+    networks:
+      - smartsolar-network
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+  redis_data:
+  ai_models:
+
+networks:
+  smartsolar-network:
+    driver: bridge
