@@ -6,6 +6,7 @@ const compression = require('compression');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const dotenv = require('dotenv');
+const path = require('path');
 const connectDB = require('./config/db');
 const errorHandler = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimiter');
@@ -42,6 +43,9 @@ if (process.env.NODE_ENV === 'development') {
 
 // Rate limiting
 app.use('/api/', apiLimiter);
+
+// Serve static files (reports, uploads)
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Health check
 app.get('/api/health', (req, res) => {
