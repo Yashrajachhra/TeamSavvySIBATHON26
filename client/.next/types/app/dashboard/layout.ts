@@ -1,4 +1,4 @@
-// File: C:\Users\Tech Savy\Desktop\SmartSolar\TeamSavvySIBATHON26\client\app\dashboard\layout.tsx
+// File: C:\Users\Yash Raj\Desktop\SmartSolar\TeamSavvySIBATHON26\client\app\dashboard\layout.tsx
 import * as entry from '../../../../app/dashboard/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
