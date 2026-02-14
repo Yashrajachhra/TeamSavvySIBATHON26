@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+pydantic-settings
+numpy
+scikit-learn
+Pillow
+opencv-python-headless
+requests
+httpx
+python-dotenv
+celery
+redis
+joblib
+tenacity
+python-jose[cryptography]==3.3.0
