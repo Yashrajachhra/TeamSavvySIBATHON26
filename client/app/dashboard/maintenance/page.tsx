@@ -6,6 +6,7 @@ import { Droplets, Wind, Thermometer, Cloud, AlertTriangle, CheckCircle, Calenda
 import api from '@/lib/axios';
 import { toast } from 'react-hot-toast';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useLocationStore } from '@/store/useLocationStore';
 
 const fadeInUp = {
     hidden: { opacity: 0, y: 20 },
@@ -20,7 +21,6 @@ export default function MaintenancePage() {
     const [schedule, setSchedule] = useState<any>(null);
     const [history, setHistory] = useState<any[]>([]);
     const [showLogModal, setShowLogModal] = useState(false);
-    const [coords, setCoords] = useState({ lat: '28.6139', lng: '77.2090' });
     const [newLog, setNewLog] = useState({
         method: 'water_wash',
         cost: 500,
@@ -29,16 +29,14 @@ export default function MaintenancePage() {
     });
 
     const user = useAuthStore(s => s.user);
+    const { lat, lng, setLocation, initializeFromUser } = useLocationStore();
 
-    // Auto-fill from user profile
+    // Initialize location from user profile on mount
     useEffect(() => {
-        if (user?.properties?.[0]?.address?.coordinates) {
-            setCoords({
-                lat: user.properties[0].address.coordinates.lat.toString(),
-                lng: user.properties[0].address.coordinates.lng.toString()
-            });
+        if (user) {
+            initializeFromUser(user);
         }
-    }, [user]);
+    }, [user, initializeFromUser]);
 
     const handleLocateMe = () => {
         if (!navigator.geolocation) {
@@ -48,10 +46,10 @@ export default function MaintenancePage() {
         const toastId = toast.loading('Locating...');
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                setCoords({
-                    lat: position.coords.latitude.toFixed(6),
-                    lng: position.coords.longitude.toFixed(6)
-                });
+                setLocation(
+                    position.coords.latitude.toFixed(6),
+                    position.coords.longitude.toFixed(6)
+                );
                 toast.success('Location updated!', { id: toastId });
             },
             (error) => {
@@ -62,7 +60,7 @@ export default function MaintenancePage() {
     };
 
     const fetchMaintenanceData = useCallback(async () => {
-        if (!coords.lat || !coords.lng) {
+        if (!lat || !lng) {
             toast.error('Please enter valid coordinates');
             return;
         }
@@ -70,7 +68,7 @@ export default function MaintenancePage() {
         setLoading(true);
         setFetched(false);
 
-        const queryParams = `?lat=${coords.lat}&lng=${coords.lng}`;
+        const queryParams = `?lat=${lat}&lng=${lng}`;
         let loaded = 0;
         const total = 3;
         const checkDone = () => { loaded++; if (loaded >= total) { setLoading(false); setFetched(true); } };
@@ -92,7 +90,7 @@ export default function MaintenancePage() {
             .then(res => { if (res.data.success) setHistory(res.data.data.logs); })
             .catch(err => console.error('History error:', err.message))
             .finally(checkDone);
-    }, [coords]);
+    }, [lat, lng]);
 
     const handleLogCleaning = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -110,7 +108,7 @@ export default function MaintenancePage() {
                 setHistory([data.data.log, ...history]);
                 setShowLogModal(false);
                 // Refresh dust status for new location
-                const queryParams = `?lat=${coords.lat}&lng=${coords.lng}`;
+                const queryParams = `?lat=${lat}&lng=${lng}`;
                 const dustRes = await api.get(`/api/maintenance/dust-status${queryParams}`);
                 if (dustRes.data.success) setDustStatus(dustRes.data.data);
             }
@@ -164,8 +162,8 @@ export default function MaintenancePage() {
                             <div className="flex-1">
                                 <label className="text-sm font-medium mb-1.5 block">Latitude</label>
                                 <input
-                                    value={coords.lat}
-                                    onChange={e => setCoords(c => ({ ...c, lat: e.target.value }))}
+                                    value={lat}
+                                    onChange={e => setLocation(e.target.value, lng)}
                                     placeholder="e.g. 24.8607"
                                     className="w-full px-4 py-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] focus:ring-2 focus:ring-orange-500 outline-none"
                                 />
@@ -173,8 +171,8 @@ export default function MaintenancePage() {
                             <div className="flex-1">
                                 <label className="text-sm font-medium mb-1.5 block">Longitude</label>
                                 <input
-                                    value={coords.lng}
-                                    onChange={e => setCoords(c => ({ ...c, lng: e.target.value }))}
+                                    value={lng}
+                                    onChange={e => setLocation(lat, e.target.value)}
                                     placeholder="e.g. 67.0011"
                                     className="w-full px-4 py-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] focus:ring-2 focus:ring-orange-500 outline-none"
                                 />
@@ -190,7 +188,7 @@ export default function MaintenancePage() {
                             </button>
                             <button
                                 onClick={fetchMaintenanceData}
-                                disabled={loading || !coords.lat || !coords.lng}
+                                disabled={loading || !lat || !lng}
                                 className="flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold hover:shadow-glow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {loading ? (
@@ -218,8 +216,8 @@ export default function MaintenancePage() {
                                 ].map(loc => (
                                     <button
                                         key={loc.label}
-                                        onClick={() => setCoords({ lat: loc.lat, lng: loc.lng })}
-                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${coords.lat === loc.lat && coords.lng === loc.lng
+                                        onClick={() => setLocation(loc.lat, loc.lng)}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${lat === loc.lat && lng === loc.lng
                                             ? 'bg-orange-500 text-white'
                                             : 'bg-[var(--bg-secondary)] border border-[var(--border-color)] hover:border-orange-500/50'
                                             }`}
@@ -241,7 +239,7 @@ export default function MaintenancePage() {
                                 scrolling="no"
                                 marginHeight={0}
                                 marginWidth={0}
-                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(coords.lng) - 0.01}%2C${parseFloat(coords.lat) - 0.01}%2C${parseFloat(coords.lng) + 0.01}%2C${parseFloat(coords.lat) + 0.01}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`}
+                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(lng) - 0.01}%2C${parseFloat(lat) - 0.01}%2C${parseFloat(lng) + 0.01}%2C${parseFloat(lat) + 0.01}&layer=mapnik&marker=${lat}%2C${lng}`}
                                 className="opacity-80 group-hover:opacity-100 transition-opacity"
                             />
                             <div className="absolute bottom-2 right-2 text-[10px] bg-white/80 dark:bg-black/50 px-2 py-1 rounded backdrop-blur-sm pointer-events-none">
@@ -262,7 +260,7 @@ export default function MaintenancePage() {
                         <Droplets className="w-8 h-8 text-white" />
                     </div>
                     <h3 className="text-lg font-bold mb-1">Fetching maintenance data...</h3>
-                    <p className="text-sm text-[var(--text-secondary)]">Getting real weather, AQI, and dust analysis for ({coords.lat}, {coords.lng})</p>
+                    <p className="text-sm text-[var(--text-secondary)]">Getting real weather, AQI, and dust analysis for ({lat}, {lng})</p>
                     <div className="mt-4 w-48 h-2 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
                         <motion.div className="h-full bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full"
                             initial={{ width: '0%' }} animate={{ width: '100%' }} transition={{ duration: 4 }} />

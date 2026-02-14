@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { MapPin, PanelTop, Sun, Ruler, ScanEye, ArrowRight, RotateCw, Zap, Home, TrendingUp, Leaf, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useLocationStore } from '@/store/useLocationStore';
 import api from '@/lib/axios';
 
 /* ------------------------------------------------------------------ */
@@ -244,22 +245,24 @@ function RoofIllustration({ type, size = 240, showPanels = false }: { type: stri
 /* ------------------------------------------------------------------ */
 export default function DesignPage() {
     const [step, setStep] = useState<'input' | 'analyzing' | 'results'>('input');
-    const [coords, setCoords] = useState({ lat: '28.6139', lng: '77.2090' });
     const [roofArea, setRoofArea] = useState('120');
     const [roofType, setRoofType] = useState('flat');
     const [results, setResults] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const user = useAuthStore(s => s.user);
+    const { lat, lng, setLocation, initializeFromUser } = useLocationStore();
 
     const selectedRoof = ROOF_TYPES.find(r => r.id === roofType) || ROOF_TYPES[0];
 
+    // Initialize location from user profile on mount
     useEffect(() => {
-        if (user?.properties?.[0]?.address?.coordinates) {
-            setCoords({
-                lat: user.properties[0].address.coordinates.lat.toString(),
-                lng: user.properties[0].address.coordinates.lng.toString()
-            });
+        if (user) {
+            initializeFromUser(user);
         }
+    }, [user, initializeFromUser]);
+
+    // Load roof area from user profile
+    useEffect(() => {
         if (user?.properties?.[0]?.roofArea) {
             setRoofArea(user.properties[0].roofArea.toString());
         }
@@ -273,10 +276,10 @@ export default function DesignPage() {
         const toastId = toast.loading('Locating...');
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                setCoords({
-                    lat: position.coords.latitude.toFixed(6),
-                    lng: position.coords.longitude.toFixed(6)
-                });
+                setLocation(
+                    position.coords.latitude.toFixed(6),
+                    position.coords.longitude.toFixed(6)
+                );
                 toast.success('Location updated!', { id: toastId });
             },
             (error) => {
@@ -287,7 +290,7 @@ export default function DesignPage() {
     };
 
     const handleAnalyze = async () => {
-        if (!coords.lat || !coords.lng) {
+        if (!lat || !lng) {
             toast.error('Please enter your location coordinates');
             return;
         }
@@ -301,8 +304,8 @@ export default function DesignPage() {
 
         try {
             const { data: roofData } = await api.post('/api/design/roof-analysis', {
-                lat: coords.lat,
-                lng: coords.lng,
+                lat: lat,
+                lng: lng,
                 roof_area: roofArea,
                 roof_type: roofType,
             });
@@ -312,8 +315,8 @@ export default function DesignPage() {
             const { data: placementData } = await api.post('/api/design/panel-placement', {
                 designId: roofResult.designId,
                 usable_area: roofResult.usableArea || 85,
-                lat: parseFloat(coords.lat),
-                lng: parseFloat(coords.lng),
+                lat: parseFloat(lat),
+                lng: parseFloat(lng),
                 roof_tilt: roofResult.estimatedTilt || selectedRoof.defaultTilt,
                 roof_orientation: 'south',
                 panel_wattage: 400,
@@ -472,12 +475,12 @@ export default function DesignPage() {
                             <div className="space-y-4">
                                 <div>
                                     <label className="text-sm font-medium mb-1.5 block">Latitude</label>
-                                    <input value={coords.lat} onChange={e => setCoords(c => ({ ...c, lat: e.target.value }))}
+                                    <input value={lat} onChange={e => setLocation(e.target.value, lng)}
                                         className="w-full px-4 py-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] focus:ring-2 focus:ring-orange-500 outline-none" />
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium mb-1.5 block">Longitude</label>
-                                    <input value={coords.lng} onChange={e => setCoords(c => ({ ...c, lng: e.target.value }))}
+                                    <input value={lng} onChange={e => setLocation(lat, e.target.value)}
                                         className="w-full px-4 py-3 rounded-xl border border-[var(--border-color)] bg-[var(--bg-secondary)] focus:ring-2 focus:ring-orange-500 outline-none" />
                                 </div>
                                 <div className="rounded-xl overflow-hidden border border-[var(--border-color)] bg-[var(--bg-secondary)] relative h-48 group">
@@ -488,7 +491,7 @@ export default function DesignPage() {
                                         scrolling="no"
                                         marginHeight={0}
                                         marginWidth={0}
-                                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(coords.lng) - 0.01}%2C${parseFloat(coords.lat) - 0.01}%2C${parseFloat(coords.lng) + 0.01}%2C${parseFloat(coords.lat) + 0.01}&layer=mapnik&marker=${coords.lat}%2C${coords.lng}`}
+                                        src={`https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(lng) - 0.01}%2C${parseFloat(lat) - 0.01}%2C${parseFloat(lng) + 0.01}%2C${parseFloat(lat) + 0.01}&layer=mapnik&marker=${lat}%2C${lng}`}
                                         className="opacity-75 group-hover:opacity-100 transition-opacity"
                                     />
                                     <div className="absolute bottom-2 right-2 text-[10px] bg-white/80 dark:bg-black/50 px-2 py-1 rounded backdrop-blur-sm pointer-events-none">
@@ -527,7 +530,7 @@ export default function DesignPage() {
 
                     <div>
                         <button onClick={handleAnalyze}
-                            disabled={!roofArea || parseFloat(roofArea) <= 0 || !coords.lat || !coords.lng}
+                            disabled={!roofArea || parseFloat(roofArea) <= 0 || !lat || !lng}
                             className="px-8 py-3 bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-semibold rounded-xl hover:shadow-glow transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <ScanEye className="w-5 h-5" /> Run AI Analysis <ArrowRight className="w-4 h-4" />
@@ -542,7 +545,7 @@ export default function DesignPage() {
                         <ScanEye className="w-10 h-10 text-white" />
                     </div>
                     <h3 className="text-xl font-bold mb-2">AI is analyzing your {selectedRoof.label.toLowerCase()}...</h3>
-                    <p className="text-[var(--text-secondary)] text-sm">Calculating optimal panel placement for {roofArea} m² at ({coords.lat}, {coords.lng})</p>
+                    <p className="text-[var(--text-secondary)] text-sm">Calculating optimal panel placement for {roofArea} m² at ({lat}, {lng})</p>
                     <div className="mt-6 w-64 h-2 bg-[var(--bg-secondary)] rounded-full overflow-hidden">
                         <motion.div className="h-full bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full"
                             initial={{ width: '0%' }} animate={{ width: '100%' }} transition={{ duration: 3 }} />
@@ -637,7 +640,7 @@ export default function DesignPage() {
                             <span className="text-[var(--text-secondary)]">Analysis for </span>
                             <span className="font-semibold">{ROOF_TYPES.find(r => r.id === resultRoofType)?.label}</span>
                             <span className="text-[var(--text-secondary)]"> at </span>
-                            <span className="font-semibold">{coords.lat}, {coords.lng}</span>
+                            <span className="font-semibold">{lat}, {lng}</span>
                             <span className="text-[var(--text-secondary)]"> with </span>
                             <span className="font-semibold">{roofArea} m²</span>
                         </div>
